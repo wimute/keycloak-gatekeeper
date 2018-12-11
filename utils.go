@@ -199,7 +199,6 @@ func readConfigFiles(filename string, config *Config, filesRead map[string]inter
 	config.ConfigImports = make([]string, 0, 0)
 
 	for _, filenameImport := range imports {
-		log.Printf("DEBUG: Configuration file '%s' being read in dir '%s'", filenameImport, filenameDir)
 		if !filepath.IsAbs(filenameImport) {
 			filenameImport = filepath.Clean(filepath.Join(filenameDir, filenameImport))
 		}
