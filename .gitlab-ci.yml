@@ -15,8 +15,7 @@ after_script:
 dockerize_wimute:
   stage: dockerize
   script:
-    - 'make docker-build'
-    - 'make docker-build'
+    - 'docker run --rm -v .:/go/src/github.com/keycloak/keycloak-gatekeeper -w /go/src/github.com/keycloak/keycloak-gatekeeper -e GOOS=linux golang:1.10.2'
     - 'docker build --tag $CI_REGISTRY/$CI_PROJECT_PATH:wimute --tag $CI_REGISTRY/$CI_PROJECT_PATH:latest'
     - 'docker push $CI_REGISTRY/$CI_PROJECT_PATH:wimute'
     - 'docker push $CI_REGISTRY/$CI_PROJECT_PATH:latest'
