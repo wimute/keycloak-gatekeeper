@@ -31,6 +31,7 @@ import (
 	"fmt"
 	"io"
 	"io/ioutil"
+	"log"
 	"math/big"
 	"net"
 	"net/http"
@@ -183,6 +184,37 @@ func (tmpl httpTemplate) solve(r *http.Request) string {
 		}
 	}
 	return result
+}
+
+// readConfigFiles reads and parses the configuration file and imports other config files
+func readConfigFiles(filename string, config *Config, filesRead map[string]interface{}) (map[string]interface{}, error) {
+	var err error
+	if err = readConfigFile(filename, config); err != nil {
+		return nil, printError("unable to read the configuration file: %s, error: %s", filename, err.Error())
+	}
+	filesRead[filename] = nil
+	filenameDir := filepath.Dir(filename)
+
+	imports := config.ConfigImports
+	config.ConfigImports = make([]string, 0, 0)
+
+	for _, filenameImport := range imports {
+		if !filepath.IsAbs(filenameImport) {
+			filenameImport = filepath.Clean(filepath.Join(filenameDir, filenameImport))
+		}
+		if _, ok := filesRead[filenameImport]; ok {
+			continue
+		}
+		if _, err = os.Stat(filenameImport); os.IsNotExist(err) {
+			log.Printf("Warning: Configuration file '%s' does not exists. Import is being ignored", filenameImport)
+			continue
+		}
+		filesRead, err = readConfigFiles(filenameImport, config, filesRead)
+		if err != nil {
+			return nil, printError("unable to read the configuration file: %s, error: %s", filename, err.Error())
+		}
+	}
+	return filesRead, nil
 }
 
 // readConfigFile reads and parses the configuration file

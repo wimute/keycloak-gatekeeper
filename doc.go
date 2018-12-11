@@ -167,6 +167,8 @@ type Resource struct {
 type Config struct {
 	// ConfigFile is the binding interface
 	ConfigFile string `json:"config" yaml:"config" usage:"path the a configuration file" env:"CONFIG_FILE"`
+	// ConfigImports is a list of config-files to import and merge
+	ConfigImports []string `json:"config-imports" yaml:"config-imports" usage:"config-files to be merged into this file. Relative to the actual config file"`
 	// Listen is the binding interface
 	Listen string `json:"listen" yaml:"listen" usage:"the interface the service should be listening on" env:"LISTEN"`
 	// ListenHTTP is the interface to bind the http only service on
