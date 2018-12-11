@@ -114,17 +114,75 @@ func createCertificate(key *rsa.PrivateKey, hostnames []string, expire time.Dura
 
 // getRequestHostURL returns the hostname from the request
 func getRequestHostURL(r *http.Request) string {
-	hostname := r.Host
-	if r.Header.Get("X-Forwarded-Host") != "" {
-		hostname = r.Header.Get("X-Forwarded-Host")
+	var proto, host, port string
+	host = r.Header.Get("X-Forwarded-Host")
+	if host == "" {
+		host = r.Host
+	}
+	port = r.Header.Get("X-Forwarded-Port")
+	if strings.ContainsRune(host, ':') {
+		hostPort := strings.Split(host, ":")
+		host = hostPort[0]
+		if port == "" {
+			port = hostPort[1]
+		}
+	}
+	proto = r.Header.Get("X-Forwarded-Proto")
+	if proto == "" {
+		switch port {
+		case "443":
+			proto = "https"
+		case "80":
+			proto = "http"
+		default:
+			if r.Proto != "" {
+				proto = r.Proto
+			} else if r.TLS != nil {
+				proto = "https"
+			} else {
+				proto = "http"
+			}
+		}
+	}
+	if port == "" || (proto == "https" && port == "443" || proto == "http" && port == "80") {
+		return fmt.Sprintf("%s://%s", proto, host)
+	}
+	return fmt.Sprintf("%s://%s:%s", proto, host, port)
+}
+
+type httpTemplate struct {
+	template string
+	header   map[string]string
+}
+
+var retrieveTokenHTTP = regexp.MustCompile("\\$\\{header:(.*?)\\}")
+
+func newHTPPTemplate(template string) httpTemplate {
+	result := httpTemplate{
+		template: template,
+		header:   make(map[string]string),
+	}
+	for _, match := range retrieveTokenHTTP.FindAllStringSubmatch(template, -1) {
+		result.header[match[0]] = match[1]
+	}
+	return result
+}
+
+func (tmpl httpTemplate) solve(r *http.Request) string {
+	if r == nil {
+		return tmpl.template
 	}
 
-	scheme := "http"
-	if r.TLS != nil {
-		scheme = "https"
+	result := tmpl.template
+	for token, header := range tmpl.header {
+		switch strings.ToLower(header) {
+		case "host":
+			result = strings.Replace(result, token, r.Host, -1)
+		default:
+			result = strings.Replace(result, token, r.Header.Get(header), -1)
+		}
 	}
-
-	return fmt.Sprintf("%s://%s", scheme, hostname)
+	return result
 }
 
 // readConfigFile reads and parses the configuration file

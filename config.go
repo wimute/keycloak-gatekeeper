@@ -75,9 +75,9 @@ func newDefaultConfig() *Config {
 // WithOAuthURI returns the oauth uri
 func (r *Config) WithOAuthURI(uri string) string {
 	if r.BaseURI != "" && uri != "" {
-		return fmt.Sprintf("%s/%s/%s", r.BaseURI, r.OAuthURI, uri)
+		return fmt.Sprintf("%s%s/%s", r.BaseURI, r.OAuthURI, uri)
 	} else if r.BaseURI != "" {
-		return fmt.Sprintf("%s/%s", r.BaseURI, r.OAuthURI)
+		return fmt.Sprintf("%s%s", r.BaseURI, r.OAuthURI)
 	}
 
 	return fmt.Sprintf("%s/%s", r.OAuthURI, uri)
@@ -117,16 +117,16 @@ func (r *Config) isValid() error {
 	}
 
 	if r.EnableForwarding {
-		if r.ClientID == "" {
+		if r.ClientID == "" && len(r.OpenIDProviders) > 0 {
 			return errors.New("you have not specified the client id")
 		}
-		if r.DiscoveryURL == "" {
+		if r.DiscoveryURL == "" && len(r.OpenIDProviders) > 0 {
 			return errors.New("you have not specified the discovery url")
 		}
-		if r.ForwardingUsername == "" {
+		if r.ForwardingUsername == "" && len(r.OpenIDProviders) > 0 {
 			return errors.New("no forwarding username")
 		}
-		if r.ForwardingPassword == "" {
+		if r.ForwardingPassword == "" && len(r.OpenIDProviders) > 0 {
 			return errors.New("no forwarding password")
 		}
 		if r.TLSCertificate != "" {
@@ -134,6 +134,44 @@ func (r *Config) isValid() error {
 		}
 		if r.TLSPrivateKey != "" {
 			return errors.New("you don't need to specify the tls-private-key, use tls-ca-key instead")
+		}
+		for matcher, OpenIDProvider := range r.OpenIDProviders {
+			if OpenIDProvider.DiscoveryURL == "" {
+				if r.DiscoveryURL == "" {
+					return fmt.Errorf("you have not specified the discoveryURL for OpenIDProvider %s", matcher)
+				}
+				OpenIDProvider.DiscoveryURL = r.DiscoveryURL
+			}
+			if OpenIDProvider.ClientID == "" {
+				if r.ClientID == "" {
+					return fmt.Errorf("you have not specified the client id for OpenIDProvider %s", matcher)
+				}
+				OpenIDProvider.ClientID = r.ClientID
+			}
+			if OpenIDProvider.ForwardingUsername == "" {
+				if r.ForwardingUsername == "" {
+					return fmt.Errorf("you have not specified the forwarding-username for OpenIDProvider %s", matcher)
+				}
+				OpenIDProvider.ForwardingUsername = r.ForwardingUsername
+			}
+			if OpenIDProvider.ForwardingPassword == "" {
+				if r.ForwardingPassword == "" {
+					return fmt.Errorf("you have not specified the forwarding-password for OpenIDProvider %s", matcher)
+				}
+				OpenIDProvider.ForwardingPassword = r.ForwardingPassword
+			}
+			if OpenIDProvider.ProviderHost == "" {
+				OpenIDProvider.ProviderHost = r.ProviderHost
+			}
+			if OpenIDProvider.ClientSecret == "" {
+				OpenIDProvider.ClientSecret = r.ClientSecret
+			}
+			if OpenIDProvider.OpenIDProviderProxy == "" {
+				OpenIDProvider.OpenIDProviderProxy = r.OpenIDProviderProxy
+			}
+			if OpenIDProvider.OpenIDProviderTimeout == 0 {
+				OpenIDProvider.OpenIDProviderTimeout = r.OpenIDProviderTimeout
+			}
 		}
 	} else {
 		if r.Upstream == "" {
@@ -148,14 +186,43 @@ func (r *Config) isValid() error {
 
 		// step: if the skip verification is off, we need the below
 		if !r.SkipTokenVerification {
-			if r.ClientID == "" {
+			if r.ClientID == "" && len(r.OpenIDProviders) > 0 {
 				return errors.New("you have not specified the client id")
 			}
-			if r.DiscoveryURL == "" {
+			if r.DiscoveryURL == "" && len(r.OpenIDProviders) > 0 {
 				return errors.New("you have not specified the discovery url")
 			}
 			if strings.HasSuffix(r.RedirectionURL, "/") {
 				r.RedirectionURL = strings.TrimSuffix(r.RedirectionURL, "/")
+			}
+			for matcher, OpenIDProvider := range r.OpenIDProviders {
+				if OpenIDProvider.DiscoveryURL == "" {
+					if r.DiscoveryURL == "" {
+						return fmt.Errorf("you have not specified the discoveryURL for OpenIDProvider %s", matcher)
+					}
+					OpenIDProvider.DiscoveryURL = r.DiscoveryURL
+				}
+				if OpenIDProvider.ClientID == "" {
+					if r.ClientID == "" {
+						return fmt.Errorf("you have not specified the client id for OpenIDProvider %s", matcher)
+					}
+					OpenIDProvider.ClientID = r.ClientID
+				}
+				if OpenIDProvider.ClientSecret == "" {
+					OpenIDProvider.ClientSecret = r.ClientSecret
+				}
+				if OpenIDProvider.ProviderHost == "" {
+					OpenIDProvider.ProviderHost = r.ProviderHost
+				}
+				if OpenIDProvider.RevocationEndpoint == "" {
+					OpenIDProvider.RevocationEndpoint = r.RevocationEndpoint
+				}
+				if OpenIDProvider.OpenIDProviderProxy == "" {
+					OpenIDProvider.OpenIDProviderProxy = r.OpenIDProviderProxy
+				}
+				if OpenIDProvider.OpenIDProviderTimeout == 0 {
+					OpenIDProvider.OpenIDProviderTimeout = r.OpenIDProviderTimeout
+				}
 			}
 			if !r.EnableSecurityFilter {
 				if r.EnableHTTPSRedirect {

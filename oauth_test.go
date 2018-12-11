@@ -278,14 +278,16 @@ func (r *fakeAuthServer) tokenHandler(w http.ResponseWriter, req *http.Request) 
 func TestGetUserinfo(t *testing.T) {
 	px, idp, _ := newTestProxyService(nil)
 	token := newTestToken(idp.getLocation()).getToken()
-	client, _ := px.client.OAuthClient()
-	claims, err := getUserinfo(client, px.idp.UserInfoEndpoint.String(), token.Encode())
+	state, _ := px.getProviderState(nil)
+	client, _ := state.client.OAuthClient()
+	claims, err := getUserinfo(client, state.idp.UserInfoEndpoint.String(), token.Encode())
 	assert.NoError(t, err)
 	assert.NotEmpty(t, claims)
 }
 
 func TestTokenExpired(t *testing.T) {
 	px, idp, _ := newTestProxyService(nil)
+	state, _ := px.getProviderState(nil)
 	token := newTestToken(idp.getLocation())
 	cs := []struct {
 		Expire time.Duration
@@ -306,7 +308,7 @@ func TestTokenExpired(t *testing.T) {
 			t.Errorf("case %d unable to sign the token, error: %s", i, err)
 			continue
 		}
-		err = verifyToken(px.client, *signed)
+		err = verifyToken(state.client, *signed)
 		if x.OK && err != nil {
 			t.Errorf("case %d, expected: %t got error: %s", i, x.OK, err)
 		}

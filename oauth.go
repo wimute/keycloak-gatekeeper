@@ -30,17 +30,22 @@ import (
 )
 
 // getOAuthClient returns a oauth2 client from the openid client
-func (r *oauthProxy) getOAuthClient(redirectionURL string) (*oauth2.Client, error) {
-	return oauth2.NewClient(r.idpClient, oauth2.Config{
+func (r *oauthProxy) getOAuthClient(redirectionURL string, req *http.Request) (*oauth2.Client, error) {
+	// get oidc-client from discovery-url
+	providerState, err := r.getProviderState(req)
+	if err != nil {
+		return nil, err
+	}
+	return oauth2.NewClient(providerState.idpClient, oauth2.Config{
 		Credentials: oauth2.ClientCredentials{
-			ID:     r.config.ClientID,
-			Secret: r.config.ClientSecret,
+			ID:     providerState.providerConfig.config.ClientID,
+			Secret: providerState.providerConfig.config.ClientSecret,
 		},
 		AuthMethod:  oauth2.AuthMethodClientSecretBasic,
-		AuthURL:     r.idp.AuthEndpoint.String(),
+		AuthURL:     providerState.idp.AuthEndpoint.String(),
 		RedirectURL: redirectionURL,
 		Scope:       append(r.config.Scopes, oidc.DefaultScope...),
-		TokenURL:    r.idp.TokenEndpoint.String(),
+		TokenURL:    providerState.idp.TokenEndpoint.String(),
 	})
 }
 
