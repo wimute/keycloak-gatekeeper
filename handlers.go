@@ -70,7 +70,7 @@ func (r *oauthProxy) oauthAuthorizationHandler(w http.ResponseWriter, req *http.
 		w.WriteHeader(http.StatusNotAcceptable)
 		return
 	}
-	client, err := r.getOAuthClient(r.getRedirectionURL(w, req))
+	client, err := r.getOAuthClient(r.getRedirectionURL(w, req), req)
 	if err != nil {
 		r.log.Error("failed to retrieve the oauth client for authorization", zap.Error(err))
 		w.WriteHeader(http.StatusInternalServerError)
@@ -115,7 +115,7 @@ func (r *oauthProxy) oauthCallbackHandler(w http.ResponseWriter, req *http.Reque
 		return
 	}
 
-	client, err := r.getOAuthClient(r.getRedirectionURL(w, req))
+	client, err := r.getOAuthClient(r.getRedirectionURL(w, req), req)
 	if err != nil {
 		r.log.Error("unable to create a oauth2 client", zap.Error(err))
 		w.WriteHeader(http.StatusInternalServerError)
@@ -146,8 +146,16 @@ func (r *oauthProxy) oauthCallbackHandler(w http.ResponseWriter, req *http.Reque
 		r.log.Warn("unable to parse the access token, using id token only", zap.Error(err))
 	}
 
+	// get provider state
+	providerState, err := r.getProviderState(req)
+	if err != nil {
+		r.log.Error("failed to retrieve provider state", zap.Error(err))
+		w.WriteHeader(http.StatusInternalServerError)
+		return
+	}
+
 	// step: check the access token is valid
-	if err = verifyToken(r.client, token); err != nil {
+	if err = verifyToken(providerState.client, token); err != nil {
 		r.log.Error("unable to verify the id token", zap.Error(err))
 		r.accessForbidden(w, req)
 		return
@@ -229,7 +237,13 @@ func (r *oauthProxy) loginHandler(w http.ResponseWriter, req *http.Request) {
 			return "request does not have both username and password", http.StatusBadRequest, errors.New("no credentials")
 		}
 
-		client, err := r.client.OAuthClient()
+		// get provider-state
+		providerState, err := r.getProviderState(req)
+		if err != nil {
+			return "unable to get provider state", http.StatusInternalServerError, err
+		}
+
+		client, err := providerState.client.OAuthClient()
 		if err != nil {
 			return "unable to create the oauth client for user_credentials request", http.StatusInternalServerError, err
 		}
@@ -323,16 +337,24 @@ func (r *oauthProxy) logoutHandler(w http.ResponseWriter, req *http.Request) {
 		}()
 	}
 
+	// get provider state
+	providerState, err := r.getProviderState(req)
+	if err != nil {
+		r.log.Error("failed to retrieveprovider state", zap.Error(err))
+		w.WriteHeader(http.StatusInternalServerError)
+		return
+	}
+
 	// set the default revocation url
 	revokeDefault := ""
-	if r.idp.EndSessionEndpoint != nil {
-		revokeDefault = r.idp.EndSessionEndpoint.String()
+	if providerState.idp.EndSessionEndpoint != nil {
+		revokeDefault = providerState.idp.EndSessionEndpoint.String()
 	}
-	revocationURL := defaultTo(r.config.RevocationEndpoint, revokeDefault)
+	revocationURL := defaultTo(providerState.revocationEndpoint, revokeDefault)
 
 	// @check if we should redirect to the provider
 	if r.config.EnableLogoutRedirect {
-		sendTo := fmt.Sprintf("%s/protocol/openid-connect/logout", strings.TrimSuffix(r.config.DiscoveryURL, "/.well-known/openid-configuration"))
+		sendTo := fmt.Sprintf("%s/protocol/openid-connect/logout", strings.TrimSuffix(providerState.discoveryURL, "/.well-known/openid-configuration"))
 
 		// @step: if no redirect uri is set
 		if redirectURL == "" {
@@ -351,7 +373,7 @@ func (r *oauthProxy) logoutHandler(w http.ResponseWriter, req *http.Request) {
 
 	// step: do we have a revocation endpoint?
 	if revocationURL != "" {
-		client, err := r.client.OAuthClient()
+		client, err := providerState.client.OAuthClient()
 		if err != nil {
 			r.log.Error("unable to retrieve the openid client", zap.Error(err))
 			w.WriteHeader(http.StatusInternalServerError)
@@ -359,8 +381,8 @@ func (r *oauthProxy) logoutHandler(w http.ResponseWriter, req *http.Request) {
 		}
 
 		// step: add the authentication headers
-		encodedID := url.QueryEscape(r.config.ClientID)
-		encodedSecret := url.QueryEscape(r.config.ClientSecret)
+		encodedID := url.QueryEscape(providerState.providerConfig.config.ClientID)
+		encodedSecret := url.QueryEscape(providerState.providerConfig.config.ClientSecret)
 
 		// step: construct the url for revocation
 		request, err := http.NewRequest(http.MethodPost, revocationURL, bytes.NewBufferString(fmt.Sprintf("refresh_token=%s", identityToken)))

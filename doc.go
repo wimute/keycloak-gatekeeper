@@ -122,6 +122,31 @@ var (
 	ErrDecryption = errors.New("failed to decrypt token")
 )
 
+// OpenIDProvider represents an OpenID Connect identity provider
+type OpenIDProvider struct {
+	// DiscoveryURL is the url for the keycloak server
+	DiscoveryURL string `json:"discovery-url" yaml:"discovery-url" usage:"discovery-url to retrieve the openid configuration"`
+	//ProviderHost is the external hostname and port of the keycloak server
+	ProviderHost string `json:"provider-host" yaml:"provider-host" usage:"provider-host sets the external host"`
+	// ClientID is the client id
+	ClientID string `json:"client-id" yaml:"client-id" usage:"client id used to authenticate to the oauth service"`
+	// ClientSecret is the secret for AS
+	ClientSecret string `json:"client-secret" yaml:"client-secret" usage:"client secret used to authenticate to the oauth service"`
+	// RevocationEndpoint is the token revocation endpoint to revoke refresh tokens
+	RevocationEndpoint string `json:"revocation-url" yaml:"revocation-url" usage:"url for the revocation endpoint to revoke refresh token"`
+	// SkipOpenIDProviderTLSVerify skips the tls verification for openid provider communication
+	SkipOpenIDProviderTLSVerify bool `json:"skip-openid-provider-tls-verify" yaml:"skip-openid-provider-tls-verify" usage:"skip the verification of any TLS communication with the openid provider"`
+	// OpenIDProviderProxy proxy for openid provider communication
+	OpenIDProviderProxy string `json:"openid-provider-proxy" yaml:"openid-provider-proxy" usage:"proxy for communication with the openid provider"`
+	// OpenIDProviderTimeout is the timeout used to pulling the openid configuration from the provider
+	OpenIDProviderTimeout time.Duration `json:"openid-provider-timeout" yaml:"openid-provider-timeout" usage:"timeout for openid configuration on .well-known/openid-configuration"`
+
+	// ForwardingUsername is the username to login to the oauth service
+	ForwardingUsername string `json:"forwarding-username" yaml:"forwarding-username" usage:"username to use when logging into the openid provider" env:"FORWARDING_USERNAME"`
+	// ForwardingPassword is the password to use for the above
+	ForwardingPassword string `json:"forwarding-password" yaml:"forwarding-password" usage:"password to use when logging into the openid provider" env:"FORWARDING_PASSWORD"`
+}
+
 // Resource represents a url resource to protect
 type Resource struct {
 	// URL the url for the resource
@@ -142,12 +167,16 @@ type Resource struct {
 type Config struct {
 	// ConfigFile is the binding interface
 	ConfigFile string `json:"config" yaml:"config" usage:"path the a configuration file" env:"CONFIG_FILE"`
+	// ConfigImports is a list of config-files to import and merge
+	ConfigImports []string `json:"config-imports" yaml:"config-imports" usage:"config-files to be merged into this file. Relative to the actual config file"`
 	// Listen is the binding interface
 	Listen string `json:"listen" yaml:"listen" usage:"the interface the service should be listening on" env:"LISTEN"`
 	// ListenHTTP is the interface to bind the http only service on
 	ListenHTTP string `json:"listen-http" yaml:"listen-http" usage:"interface we should be listening" env:"LISTEN_HTTP"`
 	// DiscoveryURL is the url for the keycloak server
 	DiscoveryURL string `json:"discovery-url" yaml:"discovery-url" usage:"discovery url to retrieve the openid configuration" env:"DISCOVERY_URL"`
+	//ProviderHost is the external hostname and port of the keycloak server
+	ProviderHost string `json:"provider-host" yaml:"provider-host" usage:"provider-host sets the external host"`
 	// ClientID is the client id
 	ClientID string `json:"client-id" yaml:"client-id" usage:"client id used to authenticate to the oauth service" env:"CLIENT_ID"`
 	// ClientSecret is the secret for AS
@@ -162,6 +191,12 @@ type Config struct {
 	OpenIDProviderProxy string `json:"openid-provider-proxy" yaml:"openid-provider-proxy" usage:"proxy for communication with the openid provider"`
 	// OpenIDProviderTimeout is the timeout used to pulling the openid configuration from the provider
 	OpenIDProviderTimeout time.Duration `json:"openid-provider-timeout" yaml:"openid-provider-timeout" usage:"timeout for openid configuration on .well-known/openid-configuration"`
+
+	// OpenIDProviderMatcher is to extract information from the request to match one of the configured OpenIDProviders
+	OpenIDProviderMatcher string `json:"openid-provider-matcher" yaml:"openid-provider-matcher" usage:"how to extract information from the request to match an OpenID Connect Provider (e.g. ${HEADER:X-Realm})"`
+	// OpenIDProviders is to setup multiple configurations for OpenID Connect providers
+	OpenIDProviders map[string]*OpenIDProvider `json:"openid-providers" yaml:"openid-providers" usage:"multiple OpenID Connect providers. Use expected matcher value as key (e.g. master)"`
+
 	// BaseURI is prepended to all the generated URIs
 	BaseURI string `json:"base-uri" yaml:"base-uri" usage:"common prefix for all URIs" env:"BASE_URI"`
 	// OAuthURI is the uri for the oauth endpoints for the proxy

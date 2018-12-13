@@ -49,7 +49,7 @@ func newOauthProxyApp() *cli.App {
 		configFile := cx.String("config")
 		// step: do we have a configuration file?
 		if configFile != "" {
-			if err := readConfigFile(configFile, config); err != nil {
+			if _, err := readConfigFiles(configFile, config, make(map[string]interface{}, 0)); err != nil {
 				return printError("unable to read the configuration file: %s, error: %s", configFile, err.Error())
 			}
 		}

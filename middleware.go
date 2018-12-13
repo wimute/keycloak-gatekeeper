@@ -67,6 +67,19 @@ func entrypointMiddleware(next http.Handler) http.Handler {
 	})
 }
 
+// discoveryMiddleware is responsible for resolving the correct dis
+func (r *oauthProxy) discoveryMiddleware(header string) func(http.Handler) http.Handler {
+	return func(next http.Handler) http.Handler {
+		return http.HandlerFunc(func(w http.ResponseWriter, req *http.Request) {
+			if v := req.Header.Get(header); v == "" {
+				req.Header.Set(header, uuid.NewV1().String())
+			}
+
+			next.ServeHTTP(w, req)
+		})
+	}
+}
+
 // requestIDMiddleware is responsible for adding a request id if none found
 func (r *oauthProxy) requestIDMiddleware(header string) func(http.Handler) http.Handler {
 	return func(next http.Handler) http.Handler {
@@ -114,6 +127,14 @@ func (r *oauthProxy) authenticationMiddleware(resource *Resource) func(http.Hand
 			scope.Identity = user
 			ctx := context.WithValue(req.Context(), contextScopeName, scope)
 
+			// get provider state
+			providerState, err := r.getProviderState(req)
+			if err != nil {
+				r.log.Error("failed to retrieve provider state", zap.Error(err))
+				w.WriteHeader(http.StatusInternalServerError)
+				return
+			}
+
 			// step: skip if we are running skip-token-verification
 			if r.config.SkipTokenVerification {
 				r.log.Warn("skip token verification enabled, skipping verification - TESTING ONLY")
@@ -127,7 +148,7 @@ func (r *oauthProxy) authenticationMiddleware(resource *Resource) func(http.Hand
 					return
 				}
 			} else {
-				if err := verifyToken(r.client, user.token); err != nil {
+				if err := verifyToken(providerState.client, user.token); err != nil {
 					// step: if the error post verification is anything other than a token
 					// expired error we immediately throw an access forbidden - as there is
 					// something messed up in the token
@@ -168,7 +189,7 @@ func (r *oauthProxy) authenticationMiddleware(resource *Resource) func(http.Hand
 					}
 
 					// attempt to refresh the access token
-					token, exp, err := getRefreshedToken(r.client, refresh)
+					token, exp, err := getRefreshedToken(providerState.client, refresh)
 					if err != nil {
 						switch err {
 						case ErrRefreshTokenExpired:

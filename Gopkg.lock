@@ -320,6 +320,7 @@
     "github.com/PuerkitoBio/purell",
     "github.com/armon/go-proxyproto",
     "github.com/boltdb/bolt",
+    "github.com/coreos/go-oidc/http",
     "github.com/coreos/go-oidc/jose",
     "github.com/coreos/go-oidc/oauth2",
     "github.com/coreos/go-oidc/oidc",
